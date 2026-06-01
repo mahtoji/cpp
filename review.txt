@@ -1,0 +1,42 @@
+## Review: mr.cpp
+
+### Bugs / Correctness
+
+1. **`CountErrorStr` returns nothing** (line 26). It counts but never `return`s a value. `cw` on line 53 will be garbage.
+
+2. **`strs` is never defined** (line 28). The error keywords to search for are referenced but never declared or populated anywhere.
+
+3. **`main`'s `fstream f`** (line 62) is opened but never used for anything meaningful after getting file size. Fine, just redundant.
+
+5. **Chunk boundary splits keywords**. If "ERROR" straddles a chunk boundary (e.g., "ERR" at end of chunk N, "OR" at start of chunk N+1), it won't be counted. You need overlap between chunks (at least `keyword_length - 1` bytes).
+
+6. **Last chunk may be smaller than `CHUNK_SIZE`**. `f.read` will read fewer bytes, but `str` still has `CHUNK_SIZE` null bytes — searching stale data from a previous chunk. You should use `f.gcount()` to know actual bytes read and limit the search.
+
+### Missing Includes
+
+    #include <fstream>
+    #include <string>
+    #include <vector>
+
+`fstream`, `string`, `vector` are used without being included.
+
+### Missing `using namespace std;`
+
+All STL types are used unqualified (`string`, `mutex`, `vector`, etc.) but there's no `using namespace std;` or `std::` prefixes.
+
+### Design / Approach
+
+- **The approach is correct in spirit**: divide file into chunks, worker threads each grab a chunk via a shared offset (protected by mutex), count locally, merge into global count. This is a valid map-reduce pattern.
+- **`strs` should be a `const` global** (a list of error keywords like `{"ERROR", "WARN", "FATAL"}`), initialized before threads start.
+- **`CountErrorStr` logic** (lines 27–38): the loop resets `i=0` after every match — this looks like it's trying to count *sequences* of all keywords appearing in order, not individual keyword frequencies. For a keyword frequency counter, you should count each keyword independently.
+
+### Summary
+
+| Issue                                        | Severity              |
+|----------------------------------------------|-----------------------|
+| `CountErrorStr` missing `return`             | Bug — silent UB       |
+| `strs` undeclared                            | Won't compile         |
+| Missing `#include`s / `using`               | Won't compile         |
+| Chunk boundary splits keywords              | Logic bug             |
+| Last chunk stale data                        | Logic bug             |
+| CountErrorStr counts sequences, not frequencies | Logic mismatch     |
