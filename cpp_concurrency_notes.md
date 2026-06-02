@@ -55,12 +55,20 @@ ul.lock();
 ul.unlock();
 ```
 
+`jthread` ctor takes a callable — `jthread jth(worker)` where `worker` is lambda/functor/function pointer.
+
 `jthread` is move-only — use `emplace_back`, not `push_back`:
 ```cpp
 vector<jthread> jv;
-jv.emplace_back(worker);   // ✓
-jv.push_back(worker);      // ✗ — tries to copy
+jv.emplace_back(worker);            // ✓ constructs jthread(worker) in-place, no temporary
+jv.emplace_back(jthread(worker));   // ✓ explicit but creates a temporary then moves in
+jv.push_back(jthread(worker));      // ✓ temporary is rvalue, push_back T&& overload moves it
+jv.push_back(move(jt));             // ✓ explicit move of named jthread (lvalue → rvalue)
+jv.push_back(worker);               // ✗ tries to copy jthread (no copy ctor)
 ```
+
+lvalue = has a name/address. rvalue = temporary, no name.
+`jthread(worker)` is an rvalue — `push_back`'s `T&&` overload accepts and moves it without explicit `move()`.
 
 Lambdas at global scope cannot capture — use `[]`, globals are accessible directly:
 ```cpp
